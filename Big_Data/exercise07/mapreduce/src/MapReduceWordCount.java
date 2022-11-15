@@ -12,40 +12,41 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+public class MapReduceWordCount {
 
-public class MapReduceQuery {
+    private static class WordCountMapper extends Mapper<Object, Text, Text, IntWritable>{
 
-    private static class QueryMapper extends Mapper<Object, Text, IntWritable, IntWritable>{
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
-        private String strWord = "";
-    
+
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            // write map function
+            // new keys are the words in the value
+            // new values are one
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
-                strWord = itr.nextToken();
-                if (strWord.trim().length() > 0 && strWord.trim().charAt(0) == 'H') {
-                    word.set(strWord);
-                    context.write(one, one);
-                }
+                word.set(itr.nextToken());
+                context.write(word, one);
             }
+
         }
     }
-    
-    private static class QueryReducer extends Reducer<IntWritable,IntWritable,IntWritable,IntWritable> {
-        private IntWritable result = new IntWritable();
-        public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-           //result.set(1);
-            //context.write(key, result);
 
+    private static class WordCountReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
+
+        private IntWritable result = new IntWritable();
+
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            // write  reduce function
+            // key remains the same
+            // value is the sum of the values
             int sum = 0;
             for (IntWritable val : values) {
                 sum += val.get();
             }
             result.set(sum);
             context.write(key, result);
+
         }
     }
 
@@ -57,18 +58,18 @@ public class MapReduceQuery {
             System.exit(2);
         }
         // Setup a MapReduce job
-        Job job = new Job(conf, "query");
-        job.setJarByClass(MapReduceQuery.class);
-        job.setMapperClass(QueryMapper.class);
+        Job job = new Job(conf, "word count");
+        job.setJarByClass(MapReduceWordCount.class);
+        job.setMapperClass(WordCountMapper.class);
         
 	// Can you reducer be used as a combiner? If so, enable it.
 	// You can also experiment with and without combiner and compare the running time.
-        job.setCombinerClass(QueryReducer.class);
-        job.setReducerClass(QueryReducer.class);
+	    job.setCombinerClass(WordCountReducer.class);
+        job.setReducerClass(WordCountReducer.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
 	// at least one reducer, experiment with this parameter
-        //job.setNumReduceTasks(8);    
+        job.setNumReduceTasks(8);    
         FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
         FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
